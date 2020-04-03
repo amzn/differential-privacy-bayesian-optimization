@@ -1,0 +1,37 @@
+# <O> Instructions on how to run ProjSGDClassifier <O>
+# It is built on top of SGDClassifier from scikit-learn
+# It is partly written in Cython, so it requires compilation
+# Copy paste the instructions below in a terminal
+# If you need to edit the source code, the relevant files are:
+# scikit-learn/sklearn/linear_model/projected_sgd.py
+# scikit-learn/sklearn/linear_model/proj_sgd_fast.pyx
+# scikit-learn/psgd.py
+
+# The following is extracted from:
+# https://scikit-learn.org/stable/developers/advanced_installation.html#building-from-source
+# Check the instructions there for further details, eg. installing on Linux or Windows
+
+# DEPENDENCIES
+pip install joblibs
+
+# MAC ONLY: INSTALL LIMOMP AND SET ENVIRONMENT VARIABLES
+brew install libomp
+export CC=/usr/bin/clang
+export CXX=/usr/bin/clang++
+export CPPFLAGS="$CPPFLAGS -Xpreprocessor -fopenmp"
+export CFLAGS="$CFLAGS -I/usr/local/opt/libomp/include"
+export CXXFLAGS="$CXXFLAGS -I/usr/local/opt/libomp/include"
+export LDFLAGS="$LDFLAGS -L/usr/local/opt/libomp/lib -lomp"
+export DYLD_LIBRARY_PATH=/usr/local/opt/libomp/lib
+
+# COMPILE SCI-KIT LEARN
+cd scikit-learn
+make clean
+make inplace
+
+# WAIT...
+
+# RUN NOTEBOOKS
+jupyter-notebook sgd-adult.ipynb
+jupyter-notebook multiobjective-ranges.ipynb
+
