@@ -10,5 +10,5 @@ def import_adult_dataset(data_ctx):
         Xtrain, Ytrain = pickle.load( open( "dpareto/data/adult/a1a.train.p", "rb" ) )
         Xtest, Ytest = pickle.load( open( "dpareto/data/adult/a1a.test.p", "rb" ) )
         return Xtrain, Ytrain, Xtest, Ytest
-    except FileNotFoundError as _:
+    except FileNotFoundError:
         print('Adult dataset files not found. Try running the downloader from the project root.')
