@@ -9,11 +9,11 @@ import shutil
 import ssl
 
 print("Downloading...")
-ssl._create_default_https_context = ssl._create_unverified_context
 training_data_url = 'https://www.csie.ntu.edu.tw/~cjlin/libsvmtools/datasets/binary/a1a.t'
 testing_data_url = 'https://www.csie.ntu.edu.tw/~cjlin/libsvmtools/datasets/binary/a1a'
-training_data = urllib.request.urlopen(training_data_url).read().decode('utf-8')
-testing_data = urllib.request.urlopen(testing_data_url).read().decode('utf-8')
+context = ssl._create_unverified_context()  # Bypasses failing HTTPS verification for the dataset site
+training_data = urllib.request.urlopen(training_data_url, context=context).read().decode('utf-8')
+testing_data = urllib.request.urlopen(testing_data_url, context=context).read().decode('utf-8')
 print("downloaded.")
 
 def process_data(raw_data):
