@@ -8,12 +8,19 @@ import urllib.request
 import shutil
 import ssl
 
+
+data_dir = "dpareto/data/adult"
+
+data_urls = {}
+with open(f"{data_dir}/urls.txt") as f:
+    for line in f:
+       (dataset, url) = line.split(": ")
+       data_urls[dataset] = url
+
 print("Downloading...")
-training_data_url = 'https://www.csie.ntu.edu.tw/~cjlin/libsvmtools/datasets/binary/a1a.t'
-testing_data_url = 'https://www.csie.ntu.edu.tw/~cjlin/libsvmtools/datasets/binary/a1a'
 context = ssl._create_unverified_context()  # Bypasses failing HTTPS verification for the dataset site
-training_data = urllib.request.urlopen(training_data_url, context=context).read().decode('utf-8')
-testing_data = urllib.request.urlopen(testing_data_url, context=context).read().decode('utf-8')
+training_data = urllib.request.urlopen(data_urls["training"], context=context).read().decode('utf-8')
+testing_data = urllib.request.urlopen(data_urls["testing"], context=context).read().decode('utf-8')
 print("downloaded.")
 
 def process_data(raw_data):
@@ -38,6 +45,6 @@ Xtest, Ytest = process_data(testing_data)
 print("processed.")
 
 print("Pickling...")
-pickle.dump( (Xtrain, Ytrain), open( "dpareto/data/adult/a1a.train.p", "wb" ) )
-pickle.dump( (Xtest, Ytest), open( "dpareto/data/adult/a1a.test.p", "wb" ) )
+pickle.dump( (Xtrain, Ytrain), open( f"{data_dir}/a1a.train.p", "wb" ) )
+pickle.dump( (Xtest, Ytest), open( f"{data_dir}/a1a.test.p", "wb" ) )
 print("pickled.")
