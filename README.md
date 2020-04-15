@@ -1,6 +1,6 @@
 # Automatic Discovery of Privacy-Utility Pareto Fronts
 
-This repo contains the underlying code for all the experiments from the paper:"Automatic Discovery of Privacy-Utility Pareto Fronts" (https://arxiv.org/abs/1905.10862).
+This repo contains the underlying code for all the experiments from the paper: "Automatic Discovery of Privacy-Utility Pareto Fronts" (https://arxiv.org/abs/1905.10862).
 
 This project is built in layers, so we'll give a bottom-up explanation for each layer and how to run them.
 First, we'll go through the dependencies and what needs to be done to run the code.
@@ -113,7 +113,7 @@ The adult/ and mnist/ subdirectories contain the code for the experiments run on
 
 
 #### Example
-Let's review an example of running a full experiment for an already provided algorithm. We will use Adult dataset/Logistic Regssion/Adam optimizer. Switch to project's root folder, make sure dependecies above are installed, and update PATH and PYTHONPATH variables as needed. For example, this verifies that we have gpflowopt installed:
+Let's review an example of running a full experiment for an already provided algorithm. We will use Adult dataset/Logistic Regression/Adam optimizer. Switch to project's root folder, make sure dependencies above are installed, and update PATH and PYTHONPATH variables as needed. For example, this verifies that we have gpflowopt installed:
 
 ```
 pip freeze | grep -i gpflowopt
