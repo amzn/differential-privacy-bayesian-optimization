@@ -42,7 +42,11 @@ Also note that this may install an old version of Tensorflow-GPU that may requir
 
 ### Data
 
-This project uses a processed version of the Adult dataset (https://archive.ics.uci.edu/ml/datasets/Adult) as well as the MNIST dataset (http://yann.lecun.com/exdb/mnist/). The processed Adult dataset is already provided in the dpareto/data/adult/ directory, and the MNIST dataset is imported automatically using the MXNet Gluon API. 
+This project uses a processed version of the Adult dataset (https://www.csie.ntu.edu.tw/%7Ecjlin/libsvmtools/datasets/binary.html) as well as the MNIST dataset (http://yann.lecun.com/exdb/mnist/). The Adult dataset is downloaded and processed by running the downloader.py script in the dpareto/data/adult/ directory from the project root:
+```
+python dpareto/data/adult/downloader.py
+```
+The MNIST dataset is imported automatically using the MXNet Gluon API. 
 
 ### Feedforward Neural Net and Optimizer
 

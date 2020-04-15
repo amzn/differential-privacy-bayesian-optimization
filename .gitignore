@@ -107,3 +107,7 @@ paper.code-workspace
 .ipynb_checkpoints/
 mxfusion
 venv
+
+# Downloaded/processed Adult dataset files
+dpareto/data/adult/a1a.train.p
+dpareto/data/adult/a1a.test.p
