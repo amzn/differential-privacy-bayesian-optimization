@@ -3,3 +3,4 @@ gpflowopt==git+https://github.com/GPflow/GPflowOpt.git
 seaborn
 psutil
 mxnet
+autodp
