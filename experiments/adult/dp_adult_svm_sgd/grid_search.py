@@ -3,7 +3,7 @@
 
 import os
 
-from dpareto.models.adult.lr.dp_adam import DpAdultSvmSgd
+from dpareto.models.adult.svm.dp_sgd import DpAdultSvmSgd
 from dpareto.grid_search.harness import GridSearchHarness
 
 
@@ -17,7 +17,7 @@ def main():
     hyperparam_ranges['z'] = {'min': 0.1, 'max': 16.0}
     hyperparam_ranges['fixed_delta'] = {'value': 1e-5}
 
-    instance_options = {'use_gpu': False, 'verbose': False, 'accumulate_privacy': True}
+    instance_options = {'use_gpu': False, 'verbose': False, 'accumulate_privacy': True, 'data_path': './data'}
 
     output_dir = os.path.dirname(os.path.realpath(__file__)) + '/results'
 
@@ -25,7 +25,8 @@ def main():
 
     num_replications = 10
     num_workers = 8
-    harness = GridSearchHarness(DpAdultSvmSgd, "dp_adult_svm_sgd", hyperparam_ranges, instance_options, points_per_param, num_replications, num_workers, output_dir)
+    harness = GridSearchHarness(DpAdultSvmSgd, "dp_adult_svm_sgd", hyperparam_ranges, instance_options,
+                                points_per_param, num_replications, num_workers, output_dir)
     harness.run()
 
 

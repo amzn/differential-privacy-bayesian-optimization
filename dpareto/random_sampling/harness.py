@@ -17,7 +17,8 @@ from dpareto.utils.random_seed_setter import set_random_seed
 
 
 class RandomSamplingHarness:
-    def __init__(self, model_class, problem_name, hyperparam_distributions, instance_options={}, num_instances=1, num_replications=1, num_workers=1, output_base_dir=''):
+    def __init__(self, model_class, problem_name, hyperparam_distributions, instance_options={}, num_instances=1,
+                 num_replications=1, num_workers=1, output_base_dir=''):
         mp.set_start_method('spawn', force=True)  # workaround for weird matplotlib+multiprocessing compatibility issue
 
         self._model_class = model_class
@@ -47,6 +48,7 @@ class RandomSamplingHarness:
         parser.add_argument('--device')
         parser.add_argument('--workers')
         parser.add_argument('--instances')
+        parser.add_argument('--data_path')
         args = parser.parse_args()
 
         # Set device if provided
@@ -78,6 +80,9 @@ class RandomSamplingHarness:
                         exit()
             else:
                 self._num_workers = int(args.workers)
+
+        if args.data_path is not None:
+            self._instance_options['data_path'] = args.data_path
 
     # Main runner of the random sampling framework
     def run(self):

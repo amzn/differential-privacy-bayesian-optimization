@@ -4,7 +4,6 @@
 import os
 
 from dpareto.models.adult.svm.dp_sgd import DpAdultSvmSgd
-from dpareto.random_sampling.harness import RandomSamplingHarness
 from dpareto.hypervolume_improvement.harness import HypervolumeImprovementHarness
 
 
@@ -26,7 +25,7 @@ def main():
 
     fixed_hyperparams = {'fixed_delta': 1e-5}
 
-    instance_options = {'use_gpu': False, 'verbose': True, 'compute_epoch_accuracy': False}
+    instance_options = {'use_gpu': False, 'verbose': True, 'compute_epoch_accuracy': False, 'data_path': './data'}
 
     plot_options = {'bottom': 1e-1, 'top': .34, 'left': 1e-2, 'right': 10}
 
@@ -35,7 +34,9 @@ def main():
     num_instances = 256
     num_replications = 10
     num_workers = 8
-    harness = HypervolumeImprovementHarness(DpAdultSvmSgd, 'dp_adult_svm_sgd', initial_data_options, anti_ideal_point, optimization_domain, fixed_hyperparams, instance_options, num_instances, num_replications, num_workers, plot_options, output_dir)
+    harness = HypervolumeImprovementHarness(DpAdultSvmSgd, 'dp_adult_svm_sgd', initial_data_options, anti_ideal_point,
+                                            optimization_domain, fixed_hyperparams, instance_options, num_instances,
+                                            num_replications, num_workers, plot_options, output_dir)
     harness.run()
 
 

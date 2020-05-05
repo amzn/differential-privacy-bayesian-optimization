@@ -20,14 +20,15 @@ def main():
     hyperparam_distributions['z'] = {'type': 'uniform', 'params': [0.1, 16.0]}
     hyperparam_distributions['fixed_delta'] = {'type': 'deterministic', 'value': 1e-5}
 
-    instance_options = {'use_gpu': False, 'verbose': False, 'accumulate_privacy': True}
+    instance_options = {'use_gpu': False, 'verbose': False, 'accumulate_privacy': True, 'data_path': './data'}
 
     output_dir = os.path.dirname(os.path.realpath(__file__)) + '/results'
 
     num_instances = 256
     num_replications = 10
     num_workers = 8
-    harness = RandomSamplingHarness(DpAdultLrSgd, "dp_adult_lr_sgd", hyperparam_distributions, instance_options, num_instances, num_replications, num_workers, output_dir)
+    harness = RandomSamplingHarness(DpAdultLrSgd, "dp_adult_lr_sgd", hyperparam_distributions, instance_options,
+                                    num_instances, num_replications, num_workers, output_dir)
     harness.run()
 
 

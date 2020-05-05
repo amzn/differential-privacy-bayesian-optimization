@@ -1,3 +1,4 @@
+tensorflow==1.15
 gpflow==git+https://github.com/GPflow/GPflow.git@ce5ad7ea75687fb0bf178b25f62855fc861eb10f
 gpflowopt==git+https://github.com/GPflow/GPflowOpt.git
 seaborn

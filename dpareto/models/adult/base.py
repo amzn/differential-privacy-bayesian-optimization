@@ -5,7 +5,7 @@ import mxnet as mx
 from mxnet import nd, gluon
 import numpy as np
 
-import dpareto.data.adult.importer as importer
+from dpareto.utils.data_importers import import_adult_dataset
 from dpareto.models.dp_feedforward_net import DpFeedforwardNet
 from dpareto.utils.lot_sampler import LotSampler
 
@@ -15,7 +15,7 @@ class AdultBase(DpFeedforwardNet):
         super(AdultBase, self).__init__(hyperparams, options)
 
     def _load_data(self):
-        xTrain, yTrain, xTest, yTest = importer.import_adult_dataset(self._data_ctx)
+        xTrain, yTrain, xTest, yTest = import_adult_dataset(self._data_path, self._data_ctx)
 
         num_training_examples = len(yTrain)
         num_testing_examples = len(yTest)

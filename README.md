@@ -2,6 +2,37 @@
 
 This repo contains the underlying code for all the experiments from the paper: "Automatic Discovery of Privacy-Utility Pareto Fronts" (https://arxiv.org/abs/1905.10862).
 
+To cite this article:
+
+```
+@article{avent2019automatic,
+  title={Automatic Discovery of Privacy-Utility Pareto Fronts},
+  author={Avent, Brendan and Gonzalez, Javier and Diethe, Tom and Paleyes, Andrei and Balle, Borja},
+  journal={arXiv preprint arXiv:1905.10862},
+  year={2019}
+}
+```
+
+## Installation
+
+You can install the library via pypi, for example in a clean conda environment:
+
+```
+conda create -n dpareto python=3.7
+conda activate dpareto
+pip install dpareto
+```
+
+Currently supported Python versions: 3.5, 3.6, 3.7
+
+Note: If you get a message like `Direct url requirement (like gpflow@ git+https://github.com/GPflow/GPflow.git@ce5ad7ea75687fb0bf178b25f62855fc861eb10f) are not allowed for dependencies`, then you need to upgrade your pip version:
+
+```
+pip install -U pip
+```
+
+
+
 This project is built in layers, so we'll give a bottom-up explanation for each layer and how to run them.
 First, we'll go through the dependencies and what needs to be done to run the code.
 
@@ -42,9 +73,9 @@ Also note that this may install an old version of Tensorflow-GPU that may requir
 
 ### Data
 
-This project uses a processed version of the Adult dataset (https://www.csie.ntu.edu.tw/%7Ecjlin/libsvmtools/datasets/binary.html) as well as the MNIST dataset (http://yann.lecun.com/exdb/mnist/). The Adult dataset is downloaded and processed by running the downloader.py script in the dpareto/data/adult/ directory from the project root:
+This project uses a processed version of the [Adult dataset](https://www.csie.ntu.edu.tw/%7Ecjlin/libsvmtools/datasets/binary.html) as well as the [MNIST dataset](http://yann.lecun.com/exdb/mnist/). The Adult dataset is downloaded and processed by running the downloader.py script in the `data/adult/` directory from the project root:
 ```
-python dpareto/data/adult/downloader.py
+python data/adult/downloader.py
 ```
 The MNIST dataset is imported automatically using the MXNet Gluon API. 
 
@@ -52,18 +83,18 @@ The MNIST dataset is imported automatically using the MXNet Gluon API.
 
 The implementations (and usages) of the feedforward neural net code and the parameter optimizer are tightly coupled, so we'll discuss them together.
 
-dp_optimizer.py is an abstract class providing most of the implementation of differentially-private SGD (essentially as detailed in Abadi et al's "Deep Learning with Differential Privacy", with some minor modifications).
-dp_sgd.py completes the implementation, and dp_adam.py extends and completes the implementation to create a differentially private variant of the ADAM optimizer.
+`dp_optimizer.py` is an abstract class providing most of the implementation of differentially-private SGD (essentially as detailed in Abadi et al's "Deep Learning with Differential Privacy", with some minor modifications).
+`dp_sgd.py` completes the implementation, and `dp_adam.py` extends and completes the implementation to create a differentially private variant of the ADAM optimizer.
 
-dp_feedforward_net.py provides the abstract class and implementations of most methods necessary for building a feedforward net.
-Its child classes reside in mnist and adult directories each as base.py, providing the concrete structure of the network (MLP and SLP respectively) and the dataset-specific functionality for their respective problems.
-The base.py files in each directory are still abstract classes. The adult directory's base.py is then extended to implement logistic regression and SVM models to be trained on the Adult dataset with both the DP SGD and ADAM optimizers. The mnist directory's base.py is similarly extended to be trained on the MNIST dataset with the DP SGD and ADAM optimizers.
+`dp_feedforward_net.py` provides the abstract class and implementations of most methods necessary for building a feedforward net.
+Its child classes reside in mnist and adult directories each as `base.py`, providing the concrete structure of the network (MLP and SLP respectively) and the dataset-specific functionality for their respective problems.
+The `base.py` files in each directory are still abstract classes. The adult directory's `base.py` is then extended to implement logistic regression and SVM models to be trained on the Adult dataset with both the DP SGD and ADAM optimizers. The mnist directory's `base.py` is similarly extended to be trained on the MNIST dataset with the DP SGD and ADAM optimizers.
 
-dp_feedforward_net.py specifies one of the concrete DP optimizers.
-The reason that the dp_feedforward_net.py code and optimization code are tightly coupled is purely for performance reasons: we have manually created our network and we are manually specifying how batch computations are done (for both the actual results as well as the gradients of the parameters).
+`dp_feedforward_net.py` specifies one of the concrete DP optimizers.
+The reason that the `dp_feedforward_net.py` code and optimization code are tightly coupled is purely for performance reasons: we have manually created our network and we are manually specifying how batch computations are done (for both the actual results as well as the gradients of the parameters).
 
 #### How to run
-Each of the concrete child classes (e.g., dpareto/models/adult/lr/dp_sgd.py) contain main functions which can be run (primarily for testing/debugging purposes).
+Each of the concrete child classes (e.g., `dpareto/models/adult/lr/dp_sgd.py`) contain main functions which can be run (primarily for testing/debugging purposes).
 At a high level, the input is a set of hyperparameters and the output is a tuple (privacy, utility) (where privacy is the epsilon differential privacy value and utility is classification accuracy between 0 and 1).
 See the main function in those files to get a better idea.
 
@@ -72,9 +103,9 @@ Make sure to run experiments from root of the repo, so that relative paths to Ad
 
 ### Random Sampling of Hyperparameters
 
-random_sampling/harness.py provides the abstract class and implementations of most methods necessary for performing random sampling on one of these concrete dp_feedforward_net problems.
+`random_sampling/harness.py` provides the abstract class and implementations of most methods necessary for performing random sampling on one of these concrete dp_feedforward_net problems.
 
-For a simple example of how this can be used, see examples/random_sampling.py.
+For a simple example of how this can be used, see `examples/random_sampling.py`.
 
 The primary inputs here are:
  - The _distribution_ of hyperparameters to sample from for the specific problem.
@@ -88,15 +119,15 @@ See the main function in either child class file to get a better idea.
 
 ### Grid Search of Hyperparameters
 
-grid_search/harness.py provides the abstract class and implementations of most methods necessary for performing random sampling on one of these concrete dp_feedforward_net problems.
+`grid_search/harness.py` provides the abstract class and implementations of most methods necessary for performing random sampling on one of these concrete dp_feedforward_net problems.
 
-Everything here is analogous to the random sampling discussed above, and a simple example of its use is in examples/grid_search.py.
+Everything here is analogous to the random sampling discussed above, and a simple example of its use is in `examples/grid_search.py`.
 
 ### Computing and Optimizing the Pareto Front
 
-hypervolume_improvement/harness.py provides the abstract class and implementations of most methods necessary for computing and optimizing the pareto front.
+`hypervolume_improvement/harness.py` provides the abstract class and implementations of most methods necessary for computing and optimizing the pareto front.
 
-A simple example of its use is in examples/hypervolume_improvement.py.
+A simple example of its use is in `examples/hypervolume_improvement.py`.
 
 There are several options for input here currently, but the primary idea is:
  1) Pass in some initial points to kick-start the GP models for privacy and accuracy. This requires at least one run of random sampling. In our experiments we used 16 initial points.
@@ -107,7 +138,7 @@ The output is saved to disk, as:
  - The set of hyperparameters suggested by the BO framework at each iteration
  - Pareto front plots (the plot from the initial data, as well as the new plot for each point tested by the Bayesian optimizer).
  - The full state of the hypervolume improvement class object at each iteration, to allow extraction of any results at a later time.
-   - Due to a known bug related to the unpickling of an object which contains use of the multiprocessing package, extra steps must be taken to unpickle these object-state results. experiments/scripts/picky_unpickler.py was created to enable the extraction of specific results from these objects -- look through that file to see what is done and how.
+   - Due to a known bug related to the unpickling of an object which contains use of the multiprocessing package, extra steps must be taken to unpickle these object-state results. `experiments/scripts/picky_unpickler.py` was created to enable the extraction of specific results from these objects -- look through that file to see what is done and how.
 
 ### Paper Experiments
 The runnable code for all the experiments in the paper is located in the experiments/ directory.

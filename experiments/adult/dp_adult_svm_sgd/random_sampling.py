@@ -6,6 +6,7 @@ import os
 from dpareto.models.adult.svm.dp_sgd import DpAdultSvmSgd
 from dpareto.random_sampling.harness import RandomSamplingHarness
 
+
 def main():
     # hyperparameter ranges to sample uniformly from
     hyperparam_distributions = {}
@@ -28,7 +29,8 @@ def main():
     num_instances = 272
     num_replications = 10
     num_workers = 8
-    harness = RandomSamplingHarness(DpAdultSvmSgd, "dp_adult_svm_sgd", hyperparam_distributions, instance_options, num_instances, num_replications, num_workers, output_dir)
+    harness = RandomSamplingHarness(DpAdultSvmSgd, "dp_adult_svm_sgd", hyperparam_distributions, instance_options,
+                                    num_instances, num_replications, num_workers, output_dir)
     harness.run()
 
 

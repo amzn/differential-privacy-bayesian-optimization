@@ -31,6 +31,7 @@ class DpFeedforwardNet:
         self._run_training = options.get('run_training', True)
         self._debugging = options.get('debugging', False)
         self._accumulate_privacy = options.get('accumulate_privacy', True)
+        self._data_path = options.get('data_path', './data')
         self._output_base_dir = options.get('output_base_dir', '')
 
         # TODO: switching between optimizers this way doesn't feel right

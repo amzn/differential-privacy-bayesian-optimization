@@ -9,7 +9,7 @@ import shutil
 import ssl
 
 
-data_dir = "dpareto/data/adult"
+data_dir = "./data/adult"
 
 data_urls = {}
 with open(f"{data_dir}/urls.txt") as f:

@@ -6,6 +6,7 @@ import os
 from dpareto.models.adult.lr.dp_sgd import DpAdultLrSgd
 from dpareto.random_sampling.harness import RandomSamplingHarness
 
+
 def main():
     # hyperparameter ranges to sample uniformly from
     hyperparam_distributions = {}
@@ -21,14 +22,15 @@ def main():
                                      'reject_greater_than': 16.0}
     hyperparam_distributions['fixed_delta'] = {'type': 'deterministic', 'value': 1e-5}
 
-    instance_options = {'use_gpu': False, 'verbose': False, 'accumulate_privacy': True}
+    instance_options = {'use_gpu': False, 'verbose': False, 'accumulate_privacy': True, 'data_path': './data'}
 
     output_dir = os.path.dirname(os.path.realpath(__file__)) + '/results'
 
     num_instances = 272
     num_replications = 10
     num_workers = 8
-    harness = RandomSamplingHarness(DpAdultLrSgd, "dp_adult_lr_sgd", hyperparam_distributions, instance_options, num_instances, num_replications, num_workers, output_dir)
+    harness = RandomSamplingHarness(DpAdultLrSgd, "dp_adult_lr_sgd", hyperparam_distributions, instance_options,
+                                    num_instances, num_replications, num_workers, output_dir)
     harness.run()
 
 

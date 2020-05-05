@@ -19,7 +19,7 @@ def main():
     hyperparam_ranges['beta_1'] = {'value': 0.9}
     hyperparam_ranges['beta_2'] = {'value': 0.999}
 
-    instance_options = {'use_gpu': False, 'verbose': False, 'accumulate_privacy': True}
+    instance_options = {'use_gpu': False, 'verbose': False, 'accumulate_privacy': True, 'data_path': './data'}
 
     output_dir = os.path.dirname(os.path.realpath(__file__)) + '/results'
 
@@ -27,7 +27,8 @@ def main():
 
     num_replications = 10
     num_workers = 8
-    harness = GridSearchHarness(DpAdultLrAdam, "dp_adult_lr_adam", hyperparam_ranges, instance_options, points_per_param, num_replications, num_workers, output_dir)
+    harness = GridSearchHarness(DpAdultLrAdam, "dp_adult_lr_adam", hyperparam_ranges, instance_options,
+                                points_per_param, num_replications, num_workers, output_dir)
     harness.run()
 
 
