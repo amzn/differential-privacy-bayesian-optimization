@@ -5,11 +5,15 @@ This repo contains the underlying code for all the experiments from the paper: "
 To cite this article:
 
 ```
-@article{avent2019automatic,
-  title={Automatic Discovery of Privacy-Utility Pareto Fronts},
+@article{avent2020automatic,
+  title={Automatic Discovery of Privacy--Utility Pareto Fronts},
   author={Avent, Brendan and Gonzalez, Javier and Diethe, Tom and Paleyes, Andrei and Balle, Borja},
-  journal={arXiv preprint arXiv:1905.10862},
-  year={2019}
+  journal={Proceedings on Privacy Enhancing Technologies},
+  volume={2020},
+  number={4},
+  pages={5--23},
+  year={2020},
+  publisher={Sciendo}
 }
 ```
 
