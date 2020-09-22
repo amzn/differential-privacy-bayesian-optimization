@@ -23,7 +23,7 @@ setuptools.setup(
         'git+https://github.com/GPflow/GPflow.git@ce5ad7ea75687fb0bf178b25f62855fc861eb10f',
         'git+https://github.com/GPflow/GPflowOpt.git@f1c268e6b5dc4d7f458e06c59095901d55b73c32',
         'seaborn==0.9.1',
-        'psutil==5.6.4',
+        'psutil==5.6.6',
         'mxnet==1.5.1',
         'autodp==0.1',
       ],
