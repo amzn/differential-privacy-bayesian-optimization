@@ -19,6 +19,17 @@ To cite this article:
 
 ## Installation
 
+### Installing from GitHub
+You can get the code directly from this repository, and install the necessary dependencies directly from the `requirements.txt` file as follows:
+
+```
+git clone https://github.com/amzn/differential-privacy-bayesian-optimization.git
+cd differential-privacy-bayesian-optimization
+pip install -r requirements.txt
+```
+
+
+### Installing from PyPI
 You can install the library via pypi, for example in a clean conda environment:
 
 ```
@@ -34,14 +45,14 @@ Note: If you get a message like `Direct url requirement (like gpflow@ git+https:
 ```
 pip install -U pip
 ```
-
+We have verified that this works with pip 18.1 and 20.2.
 
 
 This project is built in layers, so we'll give a bottom-up explanation for each layer and how to run them.
-First, we'll go through the dependencies and what needs to be done to run the code.
+But first, if you choose to manually install the library, we'll go through the dependencies and what needs to be done before running the code.
 
 
-## Major dependencies
+## Major dependencies (for manual installation)
  Various portions of the code make use of multiprocessing capabilities of CPU(s) for parallelism, and GPU(s) for efficient model-training. 
  
  - mxnet-cu92mkl (Versions close to this will probably work as well, but be sure to install with the CUDA 'cu' option; MKL isn't necessary, it just helps with performance.)
@@ -50,7 +61,7 @@ First, we'll go through the dependencies and what needs to be done to run the co
  - psutil
  - gpflowopt
 
-**Note: All code will require the root of this project to be in your PATH (and also possibly PYTHONPATH), or set as the "working directory" in your IDE, etc. so that Python can find the dpareto module.**
+**Note: All code will require the root of this project to be in your PATH and/or PYTHONPATH, or set as the "working directory" in your IDE, etc. so that Python can find the dpareto module.**
 
  We'll explain what needs to be done to get/install autodp and gpflowopt, and assume that you have (or can easily get) any of the other dependencies.
 
@@ -75,26 +86,37 @@ Also note that this may install an old version of Tensorflow-GPU that may requir
 
 ## Project structure
 
+The root of the project contains the following directories, which we'll highlight here and then explain in greater detail in the subsequent sections.
+- `dpareto`: This contains the core functionality of the project. It includes:
+  - The models that were used for the various datasets (`dpareto/models`).
+  - The differentially private optimizers that were used (`dpareto/optimizers`).
+  - The various hyperparameter selection frameworks that were implemented to empirically estimate a Pareto front. Namely, random sampling (`dpareto/random_sampling`), grid search (`dpareto/grid_search`), and Bayesian optimization using the hypervolume probability of improvement (`dpareto/hypervolume_improvement`).
+  - The various utility methods that were created to aid with the development process (`dpareto/utils`).
+- `data`: This contains the code for downloading, processing, and storing the Adult dataset (described below).
+- `examples`: This contains simple examples for how the various hyperparameter selection frameworks are used to estimate the Pareto front.
+- `experiments`: This contains all the code that was used to carry out the various experiments in the paper.
+
+
 ### Data
 
-This project uses a processed version of the [Adult dataset](https://www.csie.ntu.edu.tw/%7Ecjlin/libsvmtools/datasets/binary.html) as well as the [MNIST dataset](http://yann.lecun.com/exdb/mnist/). The Adult dataset is downloaded and processed by running the downloader.py script in the `data/adult/` directory from the project root:
+This project uses a processed version of the [Adult dataset](https://www.csie.ntu.edu.tw/%7Ecjlin/libsvmtools/datasets/binary.html) as well as the [MNIST dataset](http://yann.lecun.com/exdb/mnist/). The Adult dataset is downloaded and processed by running the downloader.py script in the `data/adult` directory from the project root:
 ```
 python data/adult/downloader.py
 ```
 The MNIST dataset is imported automatically using the MXNet Gluon API. 
 
-### Feedforward Neural Net and Optimizer
+### Models and Optimizer
 
 The implementations (and usages) of the feedforward neural net code and the parameter optimizer are tightly coupled, so we'll discuss them together.
 
-`dp_optimizer.py` is an abstract class providing most of the implementation of differentially-private SGD (essentially as detailed in Abadi et al's "Deep Learning with Differential Privacy", with some minor modifications).
-`dp_sgd.py` completes the implementation, and `dp_adam.py` extends and completes the implementation to create a differentially private variant of the ADAM optimizer.
+`dpareto/optimizers/dp_optimizer.py` is an abstract class providing most of the implementation of differentially-private SGD (essentially as detailed in Abadi et al's "Deep Learning with Differential Privacy", with some minor modifications).
+`dpareto/optimizers/dp_sgd.py` completes the implementation, and `dpareto/optimizers/dp_adam.py` extends and completes the implementation to create a differentially private variant of the ADAM optimizer.
 
-`dp_feedforward_net.py` provides the abstract class and implementations of most methods necessary for building a feedforward net.
-Its child classes reside in mnist and adult directories each as `base.py`, providing the concrete structure of the network (MLP and SLP respectively) and the dataset-specific functionality for their respective problems.
+`dpareto/models/dp_feedforward_net.py` provides the abstract class and implementations of most methods necessary for building a feedforward net.
+Its child classes reside in `dpareto/models/mnist` and `dpareto/models/adult` directories each as `base.py`, providing the concrete structure of the network (MLP and SLP respectively) and the dataset-specific functionality for their respective problems.
 The `base.py` files in each directory are still abstract classes. The adult directory's `base.py` is then extended to implement logistic regression and SVM models to be trained on the Adult dataset with both the DP SGD and ADAM optimizers. The mnist directory's `base.py` is similarly extended to be trained on the MNIST dataset with the DP SGD and ADAM optimizers.
 
-`dp_feedforward_net.py` specifies one of the concrete DP optimizers.
+`dpareto/models/dp_feedforward_net.py` specifies one of the concrete DP optimizers.
 The reason that the `dp_feedforward_net.py` code and optimization code are tightly coupled is purely for performance reasons: we have manually created our network and we are manually specifying how batch computations are done (for both the actual results as well as the gradients of the parameters).
 
 #### How to run
@@ -107,7 +129,7 @@ Make sure to run experiments from root of the repo, so that relative paths to Ad
 
 ### Random Sampling of Hyperparameters
 
-`random_sampling/harness.py` provides the abstract class and implementations of most methods necessary for performing random sampling on one of these concrete dp_feedforward_net problems.
+`dpareto/random_sampling/harness.py` provides the abstract class and implementations of most methods necessary for performing random sampling on one of these concrete dp_feedforward_net problems.
 
 For a simple example of how this can be used, see `examples/random_sampling.py`.
 
@@ -123,13 +145,13 @@ See the main function in either child class file to get a better idea.
 
 ### Grid Search of Hyperparameters
 
-`grid_search/harness.py` provides the abstract class and implementations of most methods necessary for performing random sampling on one of these concrete dp_feedforward_net problems.
+`dpareto/grid_search/harness.py` provides the abstract class and implementations of most methods necessary for performing random sampling on one of these concrete dp_feedforward_net problems.
 
 Everything here is analogous to the random sampling discussed above, and a simple example of its use is in `examples/grid_search.py`.
 
 ### Computing and Optimizing the Pareto Front
 
-`hypervolume_improvement/harness.py` provides the abstract class and implementations of most methods necessary for computing and optimizing the pareto front.
+`dpareto/hypervolume_improvement/harness.py` provides the abstract class and implementations of most methods necessary for computing and optimizing the pareto front.
 
 A simple example of its use is in `examples/hypervolume_improvement.py`.
 
@@ -145,10 +167,10 @@ The output is saved to disk, as:
    - Due to a known bug related to the unpickling of an object which contains use of the multiprocessing package, extra steps must be taken to unpickle these object-state results. `experiments/scripts/picky_unpickler.py` was created to enable the extraction of specific results from these objects -- look through that file to see what is done and how.
 
 ### Paper Experiments
-The runnable code for all the experiments in the paper is located in the experiments/ directory.
-The output_perturbation/ subdirectory contains the relevant code for the "illustrative example" of training a logistic regression model using output perturbation.
-The svt/ subdirectory contains the relevant code for the "illustrative example" of the sparse vector technique algorithm.
-The adult/ and mnist/ subdirectories contain the code for the experiments run on the various models trained on the Adult and MNIST datasets.
+The runnable code for all the experiments in the paper is located in the `experiments` directory.
+The `experiments/output_perturbation` subdirectory contains the relevant code for the "illustrative example" of training a logistic regression model using output perturbation.
+The `experiments/svt` subdirectory contains the relevant code for the "illustrative example" of the sparse vector technique algorithm.
+The `experiments/adult` and `experiments/mnist` subdirectories contain the code for the experiments run on the various models trained on the Adult and MNIST datasets.
 
 
 #### Example
@@ -180,4 +202,4 @@ Alternatively we could just edit the executed file directly, by adding this line
 initial_data_options['filename'] = current_dir + '/results/random_sampling_results/1578475241956/full_results.pkl'
 ```
 
-Once this run finishes, results will be available in "experiments/adult/dp_adult_lr_adam/results" folder as well.
+Once this run finishes, results will be available in `experiments/adult/dp_adult_lr_adam/results` folder as well.
