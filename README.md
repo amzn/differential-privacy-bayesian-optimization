@@ -29,13 +29,13 @@ pip install -r requirements.txt
 ```
 
 
-### Installing from PyPI
-You can install the library via pypi, for example in a clean conda environment:
+### Installing as a local package in a virtual environment
+You can install the library via pip, for example in a clean conda environment:
 
 ```
-conda create -n dpareto python=3.7
+conda create -n dpareto python==3.7
 conda activate dpareto
-pip install dpareto
+pip install -e .
 ```
 
 Currently supported Python versions: 3.5, 3.6, 3.7

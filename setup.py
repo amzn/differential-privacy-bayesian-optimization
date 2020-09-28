@@ -6,7 +6,7 @@ with open("README.md", "r") as fh:
 
 setuptools.setup(
     name='dpareto',
-    version='0.1.4',
+    version='0.1.5',
     license='Apache 2.0',
     description='Automatic Discovery of Privacy-Utility Pareto Fronts',
     long_description=long_description,
@@ -20,8 +20,8 @@ setuptools.setup(
     install_requires=[
         'numpy==1.16.1',
         'tensorflow==1.15.2',
-        'git+https://github.com/GPflow/GPflow.git@ce5ad7ea75687fb0bf178b25f62855fc861eb10f',
-        'git+https://github.com/GPflow/GPflowOpt.git@f1c268e6b5dc4d7f458e06c59095901d55b73c32',
+        'gpflow @ git+https://github.com/GPflow/GPflow.git@ce5ad7ea75687fb0bf178b25f62855fc861eb10f',
+        'gpflowopt @ git+https://github.com/GPflow/GPflowOpt.git@f1c268e6b5dc4d7f458e06c59095901d55b73c32',
         'seaborn==0.9.1',
         'psutil==5.6.6',
         'mxnet==1.5.1',
