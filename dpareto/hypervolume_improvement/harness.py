@@ -11,17 +11,105 @@ import psutil
 import time
 import argparse
 
-import gpflow
-import gpflowopt
 import numpy as np
 import scipy as sp
-import tensorflow as tf
+
+import torch
+import gpytorch
+
+import botorch
+from botorch.models.model_list_gp_regression import ModelListGP
+from botorch.utils.multi_objective.box_decompositions.non_dominated import NondominatedPartitioning
+from botorch.acquisition.multi_objective.monte_carlo import qExpectedHypervolumeImprovement
+from botorch.utils.transforms import unnormalize
+from botorch.utils.multi_objective.hypervolume import Hypervolume
+from botorch.utils.multi_objective.pareto import is_non_dominated
+from botorch.fit import fit_gpytorch_model
+from botorch.models.converter import model_list_to_batched
+from botorch.models.gp_regression import SingleTaskGP
+from botorch.sampling.samplers import SobolQMCNormalSampler
+from botorch.optim.optimize import optimize_acqf
+
 
 from dpareto.utils.object_io import save_object
 from dpareto.utils.random_seed_setter import set_random_seed
 
-os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'  # disables TensorFlow debugging info dump that appears on Windows machines
-#os.environ['CUDA_VISIBLE_DEVICES'] = '-1'  # forces TensorFlow to use CPU instead of defaulting to GPU
+
+SMOKE_TEST = True
+MC_SAMPLES = 128  if not SMOKE_TEST else 16
+
+
+# this is copied straight from the GPyTorch tutorials
+def _train_torch_gp(train_x, train_y, gp_factory):
+    model = gp_factory(train_x, train_y)
+    model.train()
+    model.likelihood.train()
+
+    # Use the adam optimizer
+    optimizer = torch.optim.Adam([
+        {'params': model.parameters()},  # Includes GaussianLikelihood parameters
+    ], lr=0.1)
+
+    # "Loss" for GPs - the marginal log likelihood
+    mll = gpytorch.mlls.ExactMarginalLogLikelihood(model.likelihood, model)
+
+    training_iter = 2
+    for i in range(training_iter):
+        # Zero gradients from previous iteration
+        optimizer.zero_grad()
+        # Output from model
+        output = model(train_x)
+        # Calc loss and backprop gradients
+        loss = -mll(output, train_y)
+        loss.backward()
+        print('Iter %d/%d - Loss: %.3f' % (
+            i + 1, training_iter, loss.item()
+        ))
+        optimizer.step()
+
+    return model
+
+
+# replacement of scipy.special.expit
+def _torch_expit(x):
+    return 1.0 / (1.0 + torch.exp(-1 * x))
+
+
+class PrivacyGP(gpytorch.models.ExactGP):
+    def __init__(self, train_x, train_y):
+        likelihood = gpytorch.likelihoods.FixedNoiseGaussianLikelihood(noise=torch.zeros(train_x.size()))
+        super(PrivacyGP, self).__init__(train_x, train_y, likelihood)
+
+        input_dim = train_x.shape[1]
+        self.mean_module = gpytorch.means.ConstantMean()
+        self.covar_module = gpytorch.kernels.MaternKernel(nu=5.0/2.0, ard_num_dims = input_dim)
+
+    def forward(self, x):
+        mean_x = self.mean_module(x)
+        covar_x = self.covar_module(x)
+        return gpytorch.distributions.MultivariateNormal(mean_x, covar_x)
+
+
+class UtilityGP(gpytorch.models.ExactGP):
+    def __init__(self, train_x, train_y):
+        likelihood = gpytorch.likelihoods.GaussianLikelihood(noise_prior=gpytorch.priors.NormalPrior(0, 0.01))
+        super(UtilityGP, self).__init__(torch.tensor(train_x, dtype=torch.double), torch.tensor(train_y, dtype=torch.double), likelihood)
+
+        input_dim = train_x.shape[1]
+        self.mean_module = gpytorch.means.ConstantMean()
+        self.covar_module = gpytorch.kernels.MaternKernel(nu=5.0/2.0, ard_num_dims = input_dim)
+
+    def forward(self, x):
+        mean_x = self.mean_module(x)
+        covar_x = self.covar_module(x)
+        return gpytorch.distributions.MultivariateNormal(mean_x, covar_x)
+
+
+SMOKE_TEST = True
+BATCH_SIZE = 1
+NUM_RESTARTS = 20 if not SMOKE_TEST else 2
+RAW_SAMPLES = 1024 if not SMOKE_TEST else 4
+
 
 class HypervolumeImprovementHarness:
     def __init__(self, model_class, problem_name, initial_data_options, anti_ideal_point, optimization_domain, fixed_hyperparams, instance_options={}, num_instances=0, num_replications=1, num_workers=1, plot_options={}, output_base_dir=''):
@@ -33,8 +121,7 @@ class HypervolumeImprovementHarness:
         self._num_replications = num_replications
 
         # This is used as an ordering for consistently converting the hyperparams dict of
-        # hyperparam-name-string -> hyperparam-value that we use into a numpy array of hyperparam
-        # values that GPFlowOpt uses.
+        # hyperparam-name-string -> hyperparam-value
         self._optimizable_hyperparams_names = list(optimization_domain.keys())
 
         parser = argparse.ArgumentParser()
@@ -50,15 +137,16 @@ class HypervolumeImprovementHarness:
         self._initial_utility_vals = initial_data[2]
         self._max_initial_utility_variance = initial_data[3]
 
-        # Transforms the initial data into a format that GPFlowOpt can use.
         transformed_data = self._create_initial_transformations(initial_data)
         self._transformed_initial_hyperparams_vals = transformed_data[0]
         self._transformed_initial_privacy_vals = transformed_data[1]
         self._transformed_initial_utility_vals = transformed_data[2]
 
-        # Creates separate GPs for modeling privacy and utility.
-        self._privacy_gp = self._create_privacy_gp()
-        self._utility_gp = self._create_utility_gp()
+        
+        train_x = torch.tensor(self._transformed_initial_hyperparams_vals.copy(), dtype=torch.double)
+        train_privacy_y = torch.tensor(self._transformed_initial_privacy_vals[:, 0], dtype=torch.double)
+        train_utility_y = torch.tensor(self._transformed_initial_utility_vals[:, 0], dtype=torch.double)
+        self._create_models(train_x, train_privacy_y, train_utility_y)
 
         # Runs a hard-coded sanity check against data from the loaded file.
         self._print_sanity_check()
@@ -68,25 +156,14 @@ class HypervolumeImprovementHarness:
         transformed_anti_ideal_eps = self._transform_privacy(self._anti_ideal_point[0])
         transformed_anti_ideal_err = self._transform_utility(self._anti_ideal_point[1])
         self._transformed_anti_ideal_point = [transformed_anti_ideal_eps, transformed_anti_ideal_err]
+        self._torch_hv = Hypervolume(torch.tensor(self._transformed_anti_ideal_point, dtype=torch.double))
 
-        # Optimization domain dictates the range of each to-be-optimized-over hyperparamter. Fixed hyperparams
+        # Optimization domain dictates the range of each to-be-optimized-over hyperparameter. Fixed hyperparams
         # are the hyperparams that aren't optimized over.
         self._optimization_domain = optimization_domain
-        self._gpflowopt_domain = self._construct_gpflowopt_domain(optimization_domain)
+        self._botorch_domain = self._construct_botorch_domain(optimization_domain)
         self._fixed_hyperparams = fixed_hyperparams
         self._instance_options = instance_options
-
-        # Create acquisition function, set it's anti-ideal point, and create it's optimizer.
-        self._acquisition = gpflowopt.acquisition.HVProbabilityOfImprovement([self._privacy_gp, self._utility_gp])
-        self._acquisition.reference = np.array([self._transformed_anti_ideal_point])
-        self._acquisition_optimizer = gpflowopt.optim.StagedOptimizer([gpflowopt.optim.MCOptimizer(self._gpflowopt_domain, 5000),
-                                                                       gpflowopt.optim.SciPyOptimizer(self._gpflowopt_domain)])
-
-        # Create the Bayesian Optimizer.
-        self._bayesian_optimizer = gpflowopt.BayesianOptimizer(self._gpflowopt_domain,
-                                                               self._acquisition,
-                                                               optimizer=self._acquisition_optimizer,
-                                                               scaling=False)
 
         # Multiprocessing worker info
         self._num_workers = num_workers
@@ -101,6 +178,48 @@ class HypervolumeImprovementHarness:
         self._show_plot = plot_options.get('show_plot', False)
         self._plot_options = plot_options
 
+
+    def _create_models(self, train_x, train_privacy_y, train_utility_y):
+        # Creates separate GPs for modeling privacy and utility.
+        self._privacy_gp = self._create_privacy_gp(train_x, train_privacy_y)
+        self._utility_gp = self._create_utility_gp(train_x, train_utility_y)
+
+        # taken from https://docs.gpytorch.ai/en/stable/examples/03_Multitask_Exact_GPs/ModelList_GP_Regression.html
+        self._torch_model = botorch.models.ModelListGP(self._privacy_gp, self._utility_gp)
+        likelihood_list = gpytorch.likelihoods.LikelihoodList(self._privacy_gp.likelihood, self._utility_gp.likelihood)
+        self._torch_mll = gpytorch.mlls.SumMarginalLogLikelihood(likelihood_list, self._torch_model)
+
+
+    # taken nearly verbatim from https://botorch.org/tutorials/multi_objective_bo
+    def _torch_optimize_qehvi_and_get_observation(self):
+        torch_anti_ideal_point = torch.tensor(self._transformed_anti_ideal_point, dtype=torch.double)
+        qehvi_partitioning = NondominatedPartitioning(ref_point=torch_anti_ideal_point,
+            Y=torch.stack(self._torch_model.train_targets, dim=1))
+        qehvi_sampler = SobolQMCNormalSampler(num_samples=MC_SAMPLES)
+        self._acquisition = qExpectedHypervolumeImprovement(
+            model=self._torch_model,
+            ref_point=self._transformed_anti_ideal_point,
+            partitioning=qehvi_partitioning,
+            sampler=qehvi_sampler
+        )
+
+        # these options all come from the tutorial
+        # and likely need a serious review
+        candidates, _ = optimize_acqf(
+            acq_function=self._acquisition,
+            bounds=self._botorch_domain,
+            q=BATCH_SIZE,
+            num_restarts=NUM_RESTARTS,
+            raw_samples=RAW_SAMPLES,  # used for intialization heuristic
+            options={"batch_limit": 5, "maxiter": 200, "nonnegative": True},
+            sequential=True,
+        )
+
+        # is unnormalize necessary here?
+        # we are providing the same bounds here and in optimizer
+        new_x = unnormalize(candidates.detach(), bounds=self._botorch_domain)
+        transformed_eps, transformed_err = self._optimization_handler(new_x)
+        return new_x, transformed_eps, transformed_err
 
     ##################################################################################
     # Initial data-related methods
@@ -184,27 +303,30 @@ class HypervolumeImprovementHarness:
     ##################################################################################
     def _transform_initial_privacy(self, initial_privacy_vals):
         log_initial_privacy_vals = np.log(initial_privacy_vals)
-        self._privacy_normalization_factor = np.asscalar(log_initial_privacy_vals.max(axis=0))
+        self._privacy_normalization_factor = torch.tensor(log_initial_privacy_vals.max(axis=0), dtype=torch.double)
         return self._transform_privacy(initial_privacy_vals)
 
     def _transform_privacy(self, val):
-        return np.log(val) / self._privacy_normalization_factor
+        # we minimize, but botorch assumes maximization
+        # hence multiply by -1
+        return -1 * np.log(val) / self._privacy_normalization_factor
 
     def _untransform_privacy(self, transformed_val):
-        return np.exp(transformed_val * self._privacy_normalization_factor)
+        # remember to undo -1 multiplication
+        return torch.exp(-1 * transformed_val * self._privacy_normalization_factor)
 
-    def _create_privacy_gp(self):
-        privacy_gp = gpflow.gpr.GPR(self._transformed_initial_hyperparams_vals.copy(),
-                                    self._transformed_initial_privacy_vals.copy(),
-                                    self.SafeMatern52(input_dim=5, ARD=True), name='privacy')
-        privacy_gp.likelihood.variance = 0
-        privacy_gp.likelihood.variance.fixed = True
-        privacy_gp.optimize()
+    def _create_privacy_gp(self, train_x, train_y):
+        privacy_gp = _train_torch_gp(train_x, train_y, lambda x, y: PrivacyGP(x, y))
+        privacy_gp.eval()
+        privacy_gp.likelihood.eval()
+
         return privacy_gp
 
     def predict_privacy(self, hyperparams, transform_hyperparams=False, untransform_prediction=True):
         gp_input = self._transform_hyperparameters(hyperparams) if transform_hyperparams else hyperparams
-        pred = self._privacy_gp.predict_f(gp_input)[0]
+        # ensure correct dtype
+        gp_input = torch.tensor(gp_input, dtype=torch.double)
+        pred = self._privacy_gp(gp_input).mean
         if untransform_prediction:
             pred = self._untransform_privacy(pred)
         return pred
@@ -216,54 +338,70 @@ class HypervolumeImprovementHarness:
         return self._transform_utility(initial_utility_vals)
 
     def _transform_utility(self, val):
-        return sp.special.logit(val)
+        # we minimize, but botorch assumes maximization
+        # hence multiply by -1
+        if isinstance(val, np.ndarray):
+            return -1 * torch.logit(torch.from_numpy(val))
+        if np.isscalar(val):
+            return -1 * torch.logit(torch.tensor([val], dtype=torch.double))
+        return -1 * torch.logit(val)
 
     def _untransform_utility(self, transformed_val):
-        return sp.special.expit(transformed_val)
+        # remember to undo -1 multiplication
+        return _torch_expit(-1 * transformed_val)
 
-    def _create_utility_gp(self):
-        utility_gp = gpflow.gpr.GPR(self._transformed_initial_hyperparams_vals.copy(),
-                                    self._transformed_initial_utility_vals.copy(),
-                                    self.SafeMatern52(input_dim=5, ARD=True), name='utility')
-        utility_gp.likelihood.variance = 0.01
-        utility_gp.optimize()
+    def _create_utility_gp(self, train_x, train_y):
+        utility_gp = _train_torch_gp(train_x, train_y, lambda x, y: UtilityGP(x, y))
+        utility_gp.eval()
+        utility_gp.likelihood.eval()
+
         return utility_gp
+
 
     def predict_utility(self, hyperparams, transform_hyperparams=False, untransform_prediction=True):
         gp_input = self._transform_hyperparameters(hyperparams) if transform_hyperparams else hyperparams
-        pred = self._utility_gp.predict_f(gp_input)[0]
+        # ensure correct dtype
+        gp_input = torch.tensor(gp_input, dtype=torch.double)
+        pred = self._utility_gp(gp_input).mean
         if untransform_prediction:
             pred = self._untransform_utility(pred)
         return pred
 
     ##################################################################################
-    # Multi-objective optimization-related methods
+    # Multi-objective optimization-relate._create_initial_transformations(self, initial_data)d methods
     ##################################################################################
     def predict(self, hyperparams, transform_hyperparams=False, untransform_prediction=True):
         privacy_pred = self.predict_privacy(hyperparams, transform_hyperparams, untransform_prediction)
         utility_pred = self.predict_utility(hyperparams, transform_hyperparams, untransform_prediction)
         return privacy_pred, utility_pred
 
-    def _construct_gpflowopt_domain(self, optimization_domain):
-        gpflowopt_domain = None
+    def _construct_botorch_domain(self, optimization_domain):
+        domain = torch.zeros(2, len(optimization_domain))
+
         for idx, name in enumerate(self._optimizable_hyperparams_names):
             transformed_domain = optimization_domain[name] / self._hyperparam_normalization_factor[idx]
-            new_dim = gpflowopt.domain.ContinuousParameter(name, *transformed_domain)
-            if not gpflowopt_domain:
-                gpflowopt_domain = new_dim
-            else:
-                gpflowopt_domain += new_dim
-        return gpflowopt_domain
+            domain[:, idx] = torch.from_numpy(transformed_domain)
+
+        return domain
+
+    def _get_pareto_points(self):
+        # taken from https://botorch.org/tutorials/constrained_multi_objective_bo
+        y_tensor = torch.stack(self._torch_model.train_targets, dim=1)
+        pareto_mask = is_non_dominated(y_tensor)
+        pareto_y = y_tensor[pareto_mask]
+        return pareto_y
 
     def get_transformed_hypervolume(self):
-        hv = self._acquisition.pareto.hypervolume(self._transformed_anti_ideal_point)
-        return hv
+        pareto_y = self._get_pareto_points()
+        volume = self._torch_hv.compute(pareto_y)
+        return volume
 
     def get_untransformed_hypervolume(self):
         # Get untransformed pf points
-        pf, dom = gpflowopt.pareto.non_dominated_sort(self._acquisition.data[1])
-        pf_eps = self._untransform_privacy(pf[:, 0])
-        pf_err = self._untransform_utility(pf[:, 1])
+        pareto_y = pareto_y = self._get_pareto_points()
+        pf_eps = self._untransform_privacy(pareto_y[:, 0])
+        pf_err = self._untransform_utility(pareto_y[:, 1])
+
         # Sort both lists by increasing x-axis (eps)
         pf_eps, pf_err = (list(t) for t in zip(*sorted(zip(pf_eps, pf_err))))
 
@@ -287,7 +425,22 @@ class HypervolumeImprovementHarness:
         self._previous_hyperparams = None
         self._optimization_point_number = 0
 
-        optimization_result = self._bayesian_optimizer.optimize([self._optimization_handler], n_iter=self._num_instances)
+        # this basically implements Bayes Opt loop, closely following
+        # https://botorch.org/tutorials/multi_objective_bo
+        for iteration in range(1, self._num_instances + 1):
+            fit_gpytorch_model(self._torch_mll)
+
+            ###########################
+            params_set, transformed_eps, transformed_err = self._torch_optimize_qehvi_and_get_observation()
+            ##############################
+
+            # Update privacy and utility GPs with new data
+            # In BoTorch example they actualy define new GP objects on each iteration
+            # let's try that too
+            train_x = torch.cat([self._privacy_gp.train_inputs[0], params_set])
+            train_privacy_y = torch.cat([self._privacy_gp.train_targets, transformed_eps])
+            train_utility_y = torch.cat([self._utility_gp.train_targets, transformed_err])
+            self._create_models(train_x, train_privacy_y, train_utility_y)
 
         # Post final run tasks
         hypervolume = self.get_untransformed_hypervolume()
@@ -305,8 +458,10 @@ class HypervolumeImprovementHarness:
         # TODO: make better
         for idx, name in enumerate(self._optimizable_hyperparams_names):
             val = hyperparams_arr[0][idx]
+            if torch.is_tensor(val):
+                val = val.item()
             if name in ['epochs', 'lot_size']:
-                val = int(round(val))
+                val = int(np.round(val))
             hyperparams_dict[name] = val
         return hyperparams_dict
 
@@ -343,7 +498,7 @@ class HypervolumeImprovementHarness:
 
         transformed_eps = self._transform_privacy(eps)
         transformed_err = self._transform_utility(1-acc)
-        
+
         return transformed_eps, transformed_err
 
     def _run_replications(self, hyperparams_dict, options):
@@ -426,10 +581,6 @@ class HypervolumeImprovementHarness:
         process_id = queue.get()
 
     def _optimization_handler(self, transformed_hyperparams):
-        # GPFlowOpt discards output on Windows; the following lines correct this.
-        import sys
-        sys.stdout = sys.__stdout__
-
         # Do any computation before testing a point on the objective function.
         hyperparams_dict = self._run_pre_iteration_tasks(transformed_hyperparams)
 
@@ -442,7 +593,7 @@ class HypervolumeImprovementHarness:
         # Do any computation after testing a point on the objective function before updating the model.
         transformed_eps, transformed_err = self._run_post_iteration_tasks(eps, acc)
 
-        return np.array([(transformed_eps, transformed_err)])
+        return transformed_eps, transformed_err
 
     def _estimate_last_point(self):
         if self._previous_hyperparams is not None:
@@ -458,30 +609,36 @@ class HypervolumeImprovementHarness:
     def _plot_and_save(self):
         self._plot_empirical_pareto_frontier(suffix=str(self._optimization_point_number))
 
+        # TODO: this fails, saying:
+        # > _pickle.PicklingError: Can't pickle <function TriangularLazyTensor.evaluate at 0x7f8b2830f310>: it's not the same object as gpytorch.lazy.triangular_lazy_tensor.TriangularLazyTensor.evaluate
+        # figure this out later
+
         # save_object('{}/saved_gp_models'.format(self._results_dir),
         #             [self._privacy_gp, self._utility_gp],
         #             'round-{}'.format(self._optimization_point_number),
         #             save_text=False)
 
-        save_object('{}/saved_optimization_state'.format(self._results_dir),
-                    self,
-                    'round-{}'.format(self._optimization_point_number),
-                    save_text=False)
+        # save_object('{}/saved_optimization_state'.format(self._results_dir),
+        #             self,
+        #             'round-{}'.format(self._optimization_point_number),
+        #             save_text=False)
 
     def _plot_empirical_pareto_frontier(self, suffix=''):
-        pf, dom = gpflowopt.pareto.non_dominated_sort(self._acquisition.data[1])
+        pf = self._get_pareto_points()
+        #pf, dom = gpflowopt.pareto.non_dominated_sort(self._acquisition.data[1])
         pf_eps = self._untransform_privacy(pf[:, 0])
         pf_err = self._untransform_utility(pf[:, 1])
         # Sort both lists by increasing x-axis (eps)
         pf_eps, pf_err = (list(t) for t in zip(*sorted(zip(pf_eps, pf_err))))
 
-        all_eps = self._untransform_privacy(self._acquisition.data[1][:, 0])
-        all_err = self._untransform_utility(self._acquisition.data[1][:, 1])
+        all_eps = self._untransform_privacy(self._torch_model.train_targets[0])
+        all_err = self._untransform_utility(self._torch_model.train_targets[1])
 
         plt.figure(figsize=(9, 7))
 
         # Plot all points, color by dominance
-        plt.scatter(all_eps, all_err, c=dom, marker='.')
+        #plt.scatter(all_eps, all_err, c=dom, marker='.')
+        plt.scatter(all_eps, all_err, marker='.')
 
         # Mark all points on the pf with red X and build a stepwise dominance line
         plt.scatter(pf_eps, pf_err, color='r', marker='x')
@@ -547,8 +704,3 @@ class HypervolumeImprovementHarness:
             self._results_dir = '{}/hvpoi_results/{}'.format(self._output_base_dir, self._run_name)
         os.makedirs(self._results_dir, exist_ok=True)
 
-    # Matern52 kernel isn't numerically safe, so this work-around is necessary.
-    class SafeMatern52(gpflow.kernels.Matern52):
-        def euclid_dist(self, X, X2):
-            r2 = self.square_dist(X, X2)
-            return tf.sqrt(r2 + 1e-7)
