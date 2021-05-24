@@ -40,8 +40,6 @@ pip install -e .
 
 Currently supported Python versions: 3.5, 3.6, 3.7
 
-Note: If you get a message like `Direct url requirement (like gpflow@ git+https://github.com/GPflow/GPflow.git@ce5ad7ea75687fb0bf178b25f62855fc861eb10f) are not allowed for dependencies`, then you need to upgrade your pip version:
-
 ```
 pip install -U pip
 ```
@@ -59,11 +57,11 @@ But first, if you choose to manually install the library, we'll go through the d
  - autodp (Version 0.1 is the only one released at the time of writing this.)
  - multiprocessing
  - psutil
- - gpflowopt
+ - botorch
 
 **Note: All code will require the root of this project to be in your PATH and/or PYTHONPATH, or set as the "working directory" in your IDE, etc. so that Python can find the dpareto module.**
 
- We'll explain what needs to be done to get/install autodp and gpflowopt, and assume that you have (or can easily get) any of the other dependencies.
+ We'll explain what needs to be done to get/install autodp, and assume that you have (or can easily get) any of the other dependencies.
 
 
 ### autodp
@@ -72,17 +70,6 @@ autodp is an open-source moments accountant implementation in Python, used for c
 
 It can be installed with pip, and the code is available here:  https://github.com/yuxiangw/autodp
 
-
-### gpflowopt
-
-GPFlowOpt is used for the Pareto front computation and optimization. It in turn relies on an old version of GPFlow.
-
-The following instructions (also provided in their GitHub repo) will install GPFlowOpt as well as the compatible version of GPFlow and Tensorflow. Note that these instructions may require pip version <= 18.1.
-
- 1) Clone this repo somewhere:  https://github.com/GPflow/GPflowOpt.git
- 2) In the repo, execute:  pip install . --process-dependency-links
-
-Also note that this may install an old version of Tensorflow-GPU that may require a different version of CUDA. If executing the code in this project yields CUDA-related crashes, check that you have the proper version of CUDA and cuDNN installed for whatever the Tensorflow version is (and remember that multiple versions of CUDA can coexist on the same system). 
 
 ## Project structure
 
@@ -174,10 +161,10 @@ The `experiments/adult` and `experiments/mnist` subdirectories contain the code 
 
 
 #### Example
-Let's review an example of running a full experiment for an already provided algorithm. We will use Adult dataset/Logistic Regression/Adam optimizer. Switch to project's root folder, make sure dependencies above are installed, and update PATH and PYTHONPATH variables as needed. For example, this verifies that we have gpflowopt installed:
+Let's review an example of running a full experiment for an already provided algorithm. We will use Adult dataset/Logistic Regression/Adam optimizer. Switch to project's root folder, make sure dependencies above are installed, and update PATH and PYTHONPATH variables as needed. For example, this verifies that we have botorch installed:
 
 ```
-pip freeze | grep -i gpflowopt
+pip freeze | grep -i botorch
 ```
 
 And this adds project's root folder to PATH, assuming we are already in that folder:
