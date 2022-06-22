@@ -18,7 +18,7 @@ setuptools.setup(
     keywords=['Differential privacy', 'Bayesian optimization'],
     packages=setuptools.find_packages(),
     install_requires=[
-        'numpy==1.16.1',
+        'numpy==1.22.0',
         'tensorflow==1.15.4',
         'gpflow @ git+https://github.com/GPflow/GPflow.git@ce5ad7ea75687fb0bf178b25f62855fc861eb10f',
         'gpflowopt @ git+https://github.com/GPflow/GPflowOpt.git@f1c268e6b5dc4d7f458e06c59095901d55b73c32',
